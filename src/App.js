@@ -1,61 +1,86 @@
 import React from "react";
+import { Block } from "./block";
 import "./index.scss";
-import { Success } from "./components/success";
-import { Users } from "./components/users";
-
-// Тут список пользователей: https://reqres.in/api/users
 
 function App() {
-  const [users, setUsers] = React.useState([]);
-  const [isLoading, setLoading] = React.useState(true);
-  const [searchValue, setSearchValue] = React.useState("");
-  const [invites, setInvites] = React.useState([]);
-  const [success, setSuccess] = React.useState(false);
-
-  const onClickInvite = (id) => {
-    if (invites.includes(id)) {
-      setInvites((prev) => prev.filter((_id) => _id !== id));
-    } else {
-      setInvites((prev) => [...prev, id]);
-    }
-  };
+  const [fromCurrency, setFromCurrency] = React.useState("UAH");
+  const [toCurrency, setToCurrency] = React.useState("USD");
+  const [fromPrice, setFromPrice] = React.useState(0);
+  const [toPrice, setToPrice] = React.useState(1);
+  //! const [rates, setRates] = React.useState({});
+  const ratesRef = React.useRef({});
 
   React.useEffect(() => {
-    fetch("https://reqres.in/api/users")
+    fetch(
+      "https://bank.gov.ua/NBUStatService/v1/statdirectory/exchange?date=20221129&json"
+    )
       .then((res) => res.json())
-      .then((JSON) => {
-        setUsers(JSON.data);
+      .then((json) => {
+        //setRates(Object.fromEntries(json.map((n) => [n.cc, n.rate])));
+        ratesRef.current = Object.fromEntries(json.map((n) => [n.cc, n.rate]));
+        onChangeToPrice(1);
       })
       .catch((err) => {
         console.warn(err);
-        alert("Error set users");
-      })
-      .finally(() => setLoading(false));
+        alert("Error fetch");
+      });
   }, []);
 
-  const onChangeSearchValue = (event) => {
-    setSearchValue(event.target.value);
+  const onChangeFromPrice = (value) => {
+    const price =
+      fromCurrency === "UAH"
+        ? 1
+        : ratesRef.current[fromCurrency] / ratesRef.current[toCurrency];
+    const result =
+      toCurrency !== "UAH"
+        ? value *
+          (fromCurrency === "UAH"
+            ? price / ratesRef.current[toCurrency]
+            : price)
+        : value * ratesRef.current[fromCurrency];
+
+    setFromPrice(value);
+    setToPrice(result.toFixed(3));
   };
 
-  const onClickSendSuccessInvites = () => {
-    setSuccess(true);
+  const onChangeToPrice = (value) => {
+    const price =
+      toCurrency === "UAH"
+        ? 1
+        : ratesRef.current[toCurrency] / ratesRef.current[fromCurrency];
+    const result =
+      fromCurrency !== "UAH"
+        ? value *
+          (toCurrency === "UAH"
+            ? price / ratesRef.current[fromCurrency]
+            : price)
+        : value * ratesRef.current[toCurrency];
+    setToPrice(value);
+    setFromPrice(result.toFixed(3));
   };
+
+  React.useEffect(() => {
+    onChangeFromPrice(fromPrice);
+  }, [fromCurrency]);
+
+  React.useEffect(() => {
+    onChangeToPrice(toPrice);
+  }, [toCurrency]);
 
   return (
     <div className="App">
-      {success ? (
-        <Success count={invites.length} />
-      ) : (
-        <Users
-          onChangeSearchValue={onChangeSearchValue}
-          searchValue={searchValue}
-          items={users}
-          isLoading={isLoading}
-          invites={invites}
-          onClickInvite={onClickInvite}
-          onClickSendSuccessInvites={onClickSendSuccessInvites}
-        />
-      )}
+      <Block
+        value={fromPrice}
+        currency={fromCurrency}
+        onChangeCurrency={setFromCurrency}
+        onChangeValue={onChangeFromPrice}
+      />
+      <Block
+        value={toPrice}
+        currency={toCurrency}
+        onChangeCurrency={setToCurrency}
+        onChangeValue={onChangeToPrice}
+      />
     </div>
   );
 }
